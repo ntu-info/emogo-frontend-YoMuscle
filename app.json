@@ -2,25 +2,19 @@
   "expo": {
     "scheme": "acme",
     "plugins": [
-      "expo-router"
+      "expo-router",
+      "expo-secure-store"
     ],
     "name": "expo-router-mwe",
     "slug": "expo-router-mwe",
-    "android": {
-      "package": "com.spiketren.exporoutermwe"
-    },
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "7918e76f-59e9-45c4-aae4-c99cec64cfac"
+        "projectId": "c1291601-481b-471f-8d8a-1a6cefe60f5d"
       }
     },
-    "owner": "spiketren",
-    "ios": {
-      "bundleIdentifier": "com.spiketren.exporoutermwe",
-      "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
-      }
+    "android": {
+      "package": "com.yomuscle.exporoutermwe"
     }
   }
 }
