@@ -1,8 +1,52 @@
-import { View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView, Share, Platform } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { clearAllRecords } from "../utils/storage";
+import { clearAllRecords, exportRecordsAsJSON, getAllRecords } from "../utils/storage";
 
 export default function SettingsScreen() {
+  // 匯出資料功能
+  const handleExportData = async () => {
+    try {
+      const records = await getAllRecords();
+      if (records.length === 0) {
+        Alert.alert("提示", "目前沒有任何記錄可匯出");
+        return;
+      }
+
+      const jsonData = await exportRecordsAsJSON();
+      
+      // 使用分享功能匯出
+      try {
+        await Share.share({
+          message: jsonData,
+          title: "Emogo 記錄備份",
+        });
+      } catch (e) {
+        // 如果分享失敗，顯示在 Alert 中讓使用者複製
+        Alert.alert(
+          "匯出資料",
+          `共 ${records.length} 筆記錄\n\n資料太長無法直接分享，請截圖保存以下資訊：\n\n${jsonData.substring(0, 500)}...`,
+        );
+      }
+    } catch (error) {
+      Alert.alert("錯誤", "匯出失敗: " + error.message);
+    }
+  };
+
+  // 測試通知功能
+  const handleTestNotification = async () => {
+    try {
+      const { sendTestNotification } = require("../utils/notifications");
+      const success = await sendTestNotification();
+      if (success) {
+        Alert.alert("✅ 已發送", "通知應該會立即出現！\n\n如果沒看到，請檢查手機的通知設定。");
+      } else {
+        Alert.alert("❌ 失敗", "通知權限被拒絕，請到系統設定開啟通知權限。");
+      }
+    } catch (error) {
+      Alert.alert("❌ 錯誤", "通知功能尚不可用：" + error.message);
+    }
+  };
+
   const handleClearData = () => {
     Alert.alert(
       "清除所有資料",
@@ -76,9 +120,25 @@ export default function SettingsScreen() {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>資料管理</Text>
         
+        <TouchableOpacity style={styles.exportButton} onPress={handleExportData}>
+          <Ionicons name="download-outline" size={20} color="#4CAF50" />
+          <Text style={styles.exportButtonText}>匯出所有記錄</Text>
+        </TouchableOpacity>
+
+        <View style={{ height: 12 }} />
+        
         <TouchableOpacity style={styles.dangerButton} onPress={handleClearData}>
           <Ionicons name="trash" size={20} color="#FF3B30" />
           <Text style={styles.dangerButtonText}>清除所有記錄</Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>測試功能</Text>
+        
+        <TouchableOpacity style={styles.testButton} onPress={handleTestNotification}>
+          <Ionicons name="notifications" size={20} color="#007AFF" />
+          <Text style={styles.testButtonText}>測試通知（10 秒後）</Text>
         </TouchableOpacity>
       </View>
 
@@ -161,6 +221,43 @@ const styles = StyleSheet.create({
   },
   dangerButtonText: {
     color: "#FF3B30",
+    fontSize: 16,
+    fontWeight: "500",
+    marginLeft: 8,
+  },
+  exportButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F0FFF0",
+    padding: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#D0FFD0",
+  },
+  exportButtonText: {
+    color: "#4CAF50",
+    fontSize: 16,
+    fontWeight: "500",
+    marginLeft: 8,
+  },
+  testButton: {
+    fontSize: 16,
+    fontWeight: "500",
+    marginLeft: 8,
+  },
+  testButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F0F8FF",
+    padding: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#D0E8FF",
+  },
+  testButtonText: {
+    color: "#007AFF",
     fontSize: 16,
     fontWeight: "500",
     marginLeft: 8,

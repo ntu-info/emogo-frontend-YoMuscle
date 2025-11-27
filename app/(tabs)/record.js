@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -8,10 +8,12 @@ import {
   ScrollView,
   Alert,
   Platform,
+  Image,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as Location from "expo-location";
-import { addRecord } from "../utils/storage";
+import { addRecord, updateLastOpenTime } from "../utils/storage";
+import VideoRecorder from "../components/VideoRecorder";
 
 // 心情選項
 const MOODS = [
@@ -28,10 +30,11 @@ export default function RecordScreen() {
   const [selectedMood, setSelectedMood] = useState(null);
   const [location, setLocation] = useState(null);
   const [locationLoading, setLocationLoading] = useState(false);
-  const [hasVideo, setHasVideo] = useState(false);
+  const [videoUri, setVideoUri] = useState(null);
+  const [showCamera, setShowCamera] = useState(false);
 
-  // 取得 GPS 位置
-  const getLocation = async () => {
+  // 取得 GPS 位置的函數
+  const fetchLocation = async () => {
     setLocationLoading(true);
     try {
       // Web 使用瀏覽器 API
@@ -46,12 +49,11 @@ export default function RecordScreen() {
               setLocationLoading(false);
             },
             (err) => {
-              Alert.alert("錯誤", "無法取得位置: " + err.message);
+              console.log("Web 定位失敗:", err.message);
               setLocationLoading(false);
             }
           );
         } else {
-          Alert.alert("錯誤", "瀏覽器不支援定位功能");
           setLocationLoading(false);
         }
         return;
@@ -60,31 +62,54 @@ export default function RecordScreen() {
       // Native 使用 expo-location
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== "granted") {
-        Alert.alert("權限不足", "請允許使用定位功能");
+        console.log("定位權限被拒絕");
         setLocationLoading(false);
         return;
       }
 
-      const currentLocation = await Location.getCurrentPositionAsync({});
+      const currentLocation = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
       setLocation(currentLocation.coords);
     } catch (error) {
-      console.error("Location error:", error);
-      Alert.alert("錯誤", "無法取得位置");
+      console.log("自動定位失敗:", error.message);
     } finally {
       setLocationLoading(false);
     }
   };
 
-  // 開啟相機（目前是 placeholder）
+  // 頁面載入時自動取得 GPS 位置
+  useEffect(() => {
+    fetchLocation();
+  }, []);
+
+  // 開啟相機
   const openCamera = () => {
-    // TODO: 實作相機功能
-    Alert.alert("相機功能", "相機錄影功能開發中...");
-    setHasVideo(true); // 模擬已錄影
+    setShowCamera(true);
+  };
+
+  // 錄影完成回調
+  const handleVideoRecorded = (video) => {
+    console.log("Video recorded:", video);
+    setVideoUri(video.uri);
+    setShowCamera(false);
+  };
+
+  // 移除已錄製的影片
+  const removeVideo = () => {
+    Alert.alert("移除影片", "確定要移除已錄製的影片嗎？", [
+      { text: "取消", style: "cancel" },
+      {
+        text: "移除",
+        style: "destructive",
+        onPress: () => setVideoUri(null),
+      },
+    ]);
   };
 
   // 儲存記錄
   const saveRecord = async () => {
-    if (!memo && !selectedMood && !location && !hasVideo) {
+    if (!memo && !selectedMood && !location && !videoUri) {
       Alert.alert("提示", "請至少填寫一項內容");
       return;
     }
@@ -94,10 +119,21 @@ export default function RecordScreen() {
         memo,
         mood: selectedMood,
         location,
-        hasVideo,
+        videoUri,
+        hasVideo: !!videoUri,
       };
 
       await addRecord(record);
+
+      // 重置提醒通知（新增記錄後，重新計算 6 小時）
+      await updateLastOpenTime();
+      // 動態載入通知模組（避免在舊 APK 崩潰）
+      try {
+        const { scheduleReminderNotification } = require("../utils/notifications");
+        await scheduleReminderNotification();
+      } catch (e) {
+        console.log("通知功能尚不可用");
+      }
 
       Alert.alert("成功", "記錄已儲存！", [
         {
@@ -106,8 +142,9 @@ export default function RecordScreen() {
             // 重置表單
             setMemo("");
             setSelectedMood(null);
-            setLocation(null);
-            setHasVideo(false);
+            setVideoUri(null);
+            // 重新取得 GPS 位置（為下一筆記錄準備）
+            fetchLocation();
           },
         },
       ]);
@@ -120,24 +157,49 @@ export default function RecordScreen() {
     <ScrollView style={styles.container}>
       <Text style={styles.header}>📝 新增記錄</Text>
 
+      {/* 相機錄影元件 */}
+      <VideoRecorder
+        visible={showCamera}
+        onClose={() => setShowCamera(false)}
+        onVideoRecorded={handleVideoRecorded}
+      />
+
       {/* 1. 影片區塊 */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>
           <Ionicons name="videocam" size={20} color="#333" /> 錄製影片
         </Text>
-        <TouchableOpacity
-          style={[styles.videoButton, hasVideo && styles.videoButtonRecorded]}
-          onPress={openCamera}
-        >
-          <Ionicons
-            name={hasVideo ? "checkmark-circle" : "camera"}
-            size={48}
-            color={hasVideo ? "#4CAF50" : "#666"}
-          />
-          <Text style={styles.videoButtonText}>
-            {hasVideo ? "已錄製影片 ✓" : "點擊開始錄影"}
-          </Text>
-        </TouchableOpacity>
+        {videoUri ? (
+          <View style={styles.videoPreview}>
+            <View style={styles.videoThumbnail}>
+              <Ionicons name="videocam" size={48} color="#4CAF50" />
+              <Text style={styles.videoRecordedText}>影片已錄製 ✓</Text>
+            </View>
+            <View style={styles.videoActions}>
+              <TouchableOpacity
+                style={styles.videoActionButton}
+                onPress={openCamera}
+              >
+                <Ionicons name="refresh" size={20} color="#007AFF" />
+                <Text style={styles.videoActionText}>重新錄製</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.videoActionButton, styles.videoRemoveButton]}
+                onPress={removeVideo}
+              >
+                <Ionicons name="trash" size={20} color="#FF3B30" />
+                <Text style={[styles.videoActionText, { color: "#FF3B30" }]}>
+                  移除
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : (
+          <TouchableOpacity style={styles.videoButton} onPress={openCamera}>
+            <Ionicons name="camera" size={48} color="#666" />
+            <Text style={styles.videoButtonText}>點擊開始錄影</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* 2. Memo 區塊 */}
@@ -185,29 +247,25 @@ export default function RecordScreen() {
         </View>
       </View>
 
-      {/* 4. GPS 位置區塊 */}
+      {/* 4. GPS 位置區塊（自動取得） */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>
           <Ionicons name="location" size={20} color="#333" /> GPS 定位
         </Text>
-        <TouchableOpacity
-          style={[styles.locationButton, location && styles.locationButtonActive]}
-          onPress={getLocation}
-          disabled={locationLoading}
-        >
+        <View style={styles.locationStatus}>
           <Ionicons
-            name={location ? "checkmark-circle" : "navigate"}
+            name={locationLoading ? "navigate" : location ? "checkmark-circle" : "close-circle"}
             size={24}
-            color={location ? "#4CAF50" : "#007AFF"}
+            color={locationLoading ? "#007AFF" : location ? "#4CAF50" : "#999"}
           />
-          <Text style={styles.locationButtonText}>
+          <Text style={styles.locationStatusText}>
             {locationLoading
-              ? "定位中..."
+              ? "自動定位中..."
               : location
-              ? `已定位 (${location.latitude.toFixed(4)}, ${location.longitude.toFixed(4)})`
-              : "取得目前位置"}
+              ? `📍 ${location.latitude.toFixed(4)}, ${location.longitude.toFixed(4)}`
+              : "無法取得位置"}
           </Text>
-        </TouchableOpacity>
+        </View>
       </View>
 
       {/* 儲存按鈕 */}
@@ -271,6 +329,48 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#666",
   },
+  videoPreview: {
+    backgroundColor: "#E8F5E9",
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 2,
+    borderColor: "#4CAF50",
+  },
+  videoThumbnail: {
+    alignItems: "center",
+    paddingVertical: 16,
+  },
+  videoRecordedText: {
+    marginTop: 8,
+    fontSize: 16,
+    color: "#4CAF50",
+    fontWeight: "600",
+  },
+  videoActions: {
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 16,
+    marginTop: 12,
+  },
+  videoActionButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fff",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "#007AFF",
+  },
+  videoRemoveButton: {
+    borderColor: "#FF3B30",
+  },
+  videoActionText: {
+    marginLeft: 6,
+    fontSize: 14,
+    color: "#007AFF",
+    fontWeight: "500",
+  },
   // Memo 相關樣式
   memoInput: {
     backgroundColor: "#f9f9f9",
@@ -315,20 +415,17 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   // GPS 相關樣式
-  locationButton: {
+  locationStatus: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#f0f0f0",
+    backgroundColor: "#f9f9f9",
     borderRadius: 8,
-    padding: 16,
+    padding: 14,
   },
-  locationButtonActive: {
-    backgroundColor: "#E8F5E9",
-  },
-  locationButtonText: {
+  locationStatusText: {
     marginLeft: 12,
-    fontSize: 16,
-    color: "#333",
+    fontSize: 15,
+    color: "#555",
   },
   // 儲存按鈕
   saveButton: {

@@ -1,38 +1,37 @@
 import { Platform } from "react-native";
+import * as SecureStore from "expo-secure-store";
 
 const RECORDS_KEY = "emogo_records";
-
-// 記憶體暫存
-let memoryRecords = [];
+const LAST_OPEN_KEY = "emogo_last_open";
 
 /**
- * 跨平台儲存
+ * 跨平台永久儲存
  * - Web: localStorage
- * - Native: 暫時用記憶體（之後可以換成 Development Build）
+ * - Native: expo-secure-store（永久儲存，app 關閉資料仍在）
  */
 const storage = {
   async getItem(key) {
     if (Platform.OS === "web") {
       return localStorage.getItem(key);
     }
-    // Native 暫時用記憶體
-    return JSON.stringify(memoryRecords);
+    // Native 使用 SecureStore 永久儲存
+    return await SecureStore.getItemAsync(key);
   },
   async setItem(key, value) {
     if (Platform.OS === "web") {
       localStorage.setItem(key, value);
       return;
     }
-    // Native 暫時用記憶體
-    memoryRecords = JSON.parse(value);
+    // Native 使用 SecureStore 永久儲存
+    await SecureStore.setItemAsync(key, value);
   },
   async removeItem(key) {
     if (Platform.OS === "web") {
       localStorage.removeItem(key);
       return;
     }
-    // Native 暫時用記憶體
-    memoryRecords = [];
+    // Native 使用 SecureStore
+    await SecureStore.deleteItemAsync(key);
   },
 };
 
@@ -112,6 +111,47 @@ export const clearAllRecords = async () => {
     return true;
   } catch (error) {
     console.error("清除記錄失敗:", error);
+    throw error;
+  }
+};
+
+/**
+ * 記錄最後開啟 App 的時間
+ */
+export const updateLastOpenTime = async () => {
+  try {
+    await storage.setItem(LAST_OPEN_KEY, new Date().toISOString());
+  } catch (error) {
+    console.error("更新最後開啟時間失敗:", error);
+  }
+};
+
+/**
+ * 取得最後開啟 App 的時間
+ */
+export const getLastOpenTime = async () => {
+  try {
+    return await storage.getItem(LAST_OPEN_KEY);
+  } catch (error) {
+    console.error("取得最後開啟時間失敗:", error);
+    return null;
+  }
+};
+
+/**
+ * 匯出所有記錄為 JSON 字串
+ */
+export const exportRecordsAsJSON = async () => {
+  try {
+    const records = await getAllRecords();
+    const exportData = {
+      exportedAt: new Date().toISOString(),
+      totalRecords: records.length,
+      records: records,
+    };
+    return JSON.stringify(exportData, null, 2);
+  } catch (error) {
+    console.error("匯出記錄失敗:", error);
     throw error;
   }
 };

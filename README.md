@@ -15,8 +15,6 @@ This is a very small Expo project using **expo-router** with:
 
    ```bash
    npm install
-   # or
-   yarn
    ```
 
 2. Start the dev server:
@@ -26,3 +24,34 @@ This is a very small Expo project using **expo-router** with:
    ```
 
 3. Open the app on a device or emulator using the Expo dev tools.
+
+4. 專案架構
+
+app/
+├── (tabs)/
+│   ├── _layout.js    → Tab 導航配置
+│   ├── index.js      → 新增記錄頁面
+│   ├── record.js     → 新增記錄頁面
+│   └── settings.js   → 設定頁面
+├── components/
+│   ├── CameraRecorder.js
+│   ├── MemoInput.js
+│   ├── MoodPicker.js    → 心情選擇器元件
+│   └── RecordCard.js    → 記錄卡片元件
+└── utils/
+    └── storage.js       → 本地儲存工具    
+
+5. UI 原型預覽
+頁面	功能
+我的記錄	顯示所有記錄列表，支援下拉刷新、刪除
+新增記錄	包含 4 個區塊：錄影、Memo、心情、GPS
+設定	功能說明、清除資料
+
+UI 特色
+📹 影片區塊：點擊可開啟相機（目前是 placeholder）
+📝 Memo 區塊：多行文字輸入
+😊 心情選擇：6 種情緒，漂亮的 emoji 選擇器
+📍 GPS 定位：一鍵取得當前位置
+
+6. 手機收集到的資料放在 data/ 資料夾內
+   我是從手機下載透過
