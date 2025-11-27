@@ -9,6 +9,13 @@ This is a very small Expo project using **expo-router** with:
 - A `details` screen pushed on top of the tab stack
 - `Link` components and `useRouter` for navigation
 
+## 下載正式版 APK
+在手機瀏覽器打開這個連結：
+```
+https://expo.dev/accounts/yomuscle/projects/expo-router-mwe/builds/7b882169-e554-4b97-a669-ccfd85864693
+```
+然後點擊 「Install」 下載安裝。
+
 ## How to run
 
 1. Install dependencies:
